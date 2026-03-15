@@ -1,0 +1,8 @@
+youtube-transcript-api>=1.0.0
+anthropic>=0.40.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+yt-dlp>=2024.0.0
+markdown>=3.5
+pyyaml>=6.0
+httpx>=0.25.0
