@@ -52,6 +52,42 @@ CATEGORIES = {
 }
 
 
+def _extract_video_id(url: str) -> str:
+    """Extract YouTube video ID from URL."""
+    import re
+    match = re.search(r'(?:v=|/v/|youtu\.be/|/embed/)([a-zA-Z0-9_-]{11})', url)
+    return match.group(1) if match else ""
+
+
+def _inject_video_embed(html_content: str, video_url: str) -> str:
+    """Inject YouTube video embed after the second paragraph."""
+    video_id = _extract_video_id(video_url)
+    if not video_id:
+        return html_content
+
+    embed_block = (
+        '<div style="text-align:center;margin:30px 0;">'
+        '<p><strong>Zur Podcast-Folge:</strong></p>'
+        f'<iframe width="560" height="315" '
+        f'src="https://www.youtube.com/embed/{video_id}" '
+        f'title="YouTube video player" frameborder="0" '
+        f'allow="accelerometer; autoplay; clipboard-write; encrypted-media; '
+        f'gyroscope; picture-in-picture; web-share" '
+        f'referrerpolicy="strict-origin-when-cross-origin" allowfullscreen>'
+        f'</iframe>'
+        '</div>'
+    )
+
+    # Insert after second </p> tag
+    parts = html_content.split('</p>')
+    if len(parts) >= 3:
+        # After 2nd paragraph
+        return '</p>'.join(parts[:2]) + '</p>' + embed_block + '</p>'.join(parts[2:])
+    else:
+        # Fallback: insert after first paragraph
+        return '</p>'.join(parts[:1]) + '</p>' + embed_block + '</p>'.join(parts[1:])
+
+
 def _wp_request(method, url, wp_user, wp_app_password, **kwargs):
     """Make a WordPress API request using ?rest_route= format with proper headers."""
     kwargs.setdefault("headers", {}).update(HEADERS)
@@ -81,6 +117,18 @@ def publish_to_wordpress(
     # Convert markdown to HTML for WordPress
     md_content = blog_data.get("content_markdown", "")
     content = markdown.markdown(md_content, extensions=["tables", "fenced_code", "nl2br"])
+
+    # Inject YouTube video embed after intro paragraph if source video is available
+    source_video = blog_data.get("source_video", "")
+    if not source_video:
+        # Try to extract from frontmatter-style fields
+        for key in ["video_url", "url"]:
+            if blog_data.get(key):
+                source_video = blog_data[key]
+                break
+
+    if source_video:
+        content = _inject_video_embed(content, source_video)
 
     # Build the post payload
     post_data = {
